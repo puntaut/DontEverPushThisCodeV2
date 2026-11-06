@@ -7,17 +7,14 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
-# TODO#0: Permissions block - Principle of Least Privilege
 permissions:
-  contents: read             # TODO#0a
-  security-events: write     # TODO#0b
-  pull-requests: write       # TODO#0c
+  contents: read
+  security-events: write
+  pull-requests: write
   actions: read
 
 jobs:
-  # ==========================================
   # GATE#0: Secret Scanning
-  # ==========================================
   secret-scan:
     name: "GATE#0 - Secret Scanning"
     runs-on: ubuntu-latest
@@ -25,20 +22,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          # TODO#1: Full git history needed for secret scanners
           fetch-depth: 0
 
-      # TODO#2 & TODO#3: TruffleHog (Scan commit diff & verify live creds)
       - name: TruffleHog OSS
         uses: trufflesecurity/trufflehog@main
         continue-on-error: true
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
           head: HEAD
           extra_args: --only-verified
 
-      # TODO#4: Gitleaks step with SARIF upload and job summary
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
         continue-on-error: true
@@ -46,9 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_SUMMARY: true
 
-  # ==========================================
   # GATE#1a: SonarCloud SAST
-  # ==========================================
   sonarcloud:
     name: "GATE#1a - SonarCloud SAST"
     runs-on: ubuntu-latest
@@ -56,27 +47,26 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          # TODO#5: Full git history for blame detection
           fetch-depth: 0
 
-      # TODO#6: SonarCloud Scan Step
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@master
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=puntaut
+            -Dsonar.projectKey=puntaut_DontEverPushThisCodeV2
 
-  # ==========================================
   # GATE#1b: CodeQL SAST
-  # ==========================================
   codeql:
     name: "GATE#1b - CodeQL SAST"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # TODO#7: CodeQL language for Next.js/React
         language: [ 'javascript-typescript' ]
 
     steps:
@@ -87,18 +77,14 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          # TODO#8: Extended security and quality query suites
           queries: +security-extended,security-and-quality
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          # TODO#9: Avoid collisions when scanning multiple languages
           category: "/language:${{ matrix.language }}"
 
-  # ==========================================
-  # GATE#2: Dependency Scanning (OWASP Dep-Check)
-  # ==========================================
+  # GATE#2: Dependency Scanning
   dependency-check:
     name: "GATE#2 - Dependency Scanning"
     runs-on: ubuntu-latest
@@ -106,13 +92,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # TODO#10: Set up Node.js 20
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # TODO#11: Install dependencies before scanning
       - name: Install Dependencies
         run: npm install --package-lock-only
 
@@ -122,14 +106,11 @@ jobs:
         with:
           project: 'DontEverPushThisCodeV2'
           path: '.'
-          # TODO#12: Format for GitHub Security tab integration
           format: 'SARIF'
-          # TODO#13: Fail threshold separating MEDIUM from HIGH (CVSS >= 7.0)
           args: >
             --failOnCVSS 7
             --enableRetired
 
-      # TODO#14: Upload SARIF report to GitHub Security tab
       - name: Upload Dependency-Check SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()
@@ -137,7 +118,6 @@ jobs:
           sarif_file: 'reports/dependency-check-report.sarif'
           category: "/gate:dependency-check"
 
-      # TODO#15: Upload raw report folder as downloadable workflow artifact
       - name: Upload Reports Artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -145,9 +125,7 @@ jobs:
           name: dependency-check-reports
           path: 'reports/'
 
-  # ==========================================
-  # GATE#3: Container Scanning (Trivy)
-  # ==========================================
+  # GATE#3: Container Scanning
   container-scan:
     name: "GATE#3 - Trivy Container Scanning"
     runs-on: ubuntu-latest
@@ -155,25 +133,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # TODO#16: Build Docker image before scanning
       - name: Build Docker Image
-        run: |
-          docker build -t highly-exploitable-site .
+        run: docker build -t highly-exploitable-site .
 
-      - name: Run Trivy vulnerability scanner
+      - name: Run Trivy scanner
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
           image-ref: 'highly-exploitable-site'
-          # TODO#17: SARIF output format
           format: 'sarif'
           output: 'trivy-results.sarif'
-          # TODO#18: Severity levels to report
           severity: 'CRITICAL,HIGH'
-          # TODO#19: Report only CVEs with available fixes
           ignore-unfixed: true
 
-      # TODO#20: Upload Trivy SARIF to GitHub Security tab
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v3
         if: always()
@@ -181,7 +153,6 @@ jobs:
           sarif_file: 'trivy-results.sarif'
           category: "/gate:trivy-container"
 
-      # TODO#21: Upload raw SARIF as a downloadable artifact
       - name: Upload Trivy Artifact
         uses: actions/upload-artifact@v4
         if: always()
